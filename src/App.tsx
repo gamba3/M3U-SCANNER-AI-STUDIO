@@ -29,19 +29,69 @@ import { HitResult, ProgressState } from './types';
 export default function App() {
   const [activeTab, setActiveTab] = useState<'engine' | 'settings'>('engine');
   
-  const [portal, setPortal] = useState('');
-  const [combo, setCombo] = useState<string[]>([]);
-  const [proxies, setProxies] = useState<string[]>([]);
-  const [proxyType, setProxyType] = useState<'http' | 'socks4' | 'socks5' | 'none'>('none');
-  const [threads, setThreads] = useState(150);
+  const [portal, setPortal] = useState(() => localStorage.getItem('ghost_portal') || '');
+  const [combo, setCombo] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('ghost_combo');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) { return []; }
+  });
+  const [proxies, setProxies] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('ghost_proxies');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) { return []; }
+  });
+  const [proxyType, setProxyType] = useState<'http' | 'socks4' | 'socks5' | 'none'>(() => {
+    return (localStorage.getItem('ghost_proxyType') as any) || 'none';
+  });
+  const [threads, setThreads] = useState(() => {
+    return parseInt(localStorage.getItem('ghost_threads') || '150');
+  });
   
   // Settings
-  const [bypassCloudflare, setBypassCloudflare] = useState(true);
-  const [randomUserAgent, setRandomUserAgent] = useState(true);
-  const [playSound, setPlaySound] = useState(false);
+  const [bypassCloudflare, setBypassCloudflare] = useState(() => {
+    return localStorage.getItem('ghost_bypass') !== 'false';
+  });
+  const [randomUserAgent, setRandomUserAgent] = useState(() => {
+    return localStorage.getItem('ghost_randomUA') !== 'false';
+  });
+  const [playSound, setPlaySound] = useState(() => {
+    return localStorage.getItem('ghost_playSound') === 'true';
+  });
   const [soundUrl, setSoundUrl] = useState<string | null>(null);
 
   const [isChecking, setIsChecking] = useState(false);
+  const [isFetchingCombo, setIsFetchingCombo] = useState(false);
+  const [isFetchingProxy, setIsFetchingProxy] = useState(false);
+  const [notification, setNotification] = useState<{ message: string; sub: string; visible: boolean }>({ message: '', sub: '', visible: false });
+
+  // Persistence Effects
+  useEffect(() => {
+    localStorage.setItem('ghost_portal', portal);
+  }, [portal]);
+
+  useEffect(() => {
+    try { localStorage.setItem('ghost_combo', JSON.stringify(combo)); } catch (e) {}
+  }, [combo]);
+
+  useEffect(() => {
+    try { localStorage.setItem('ghost_proxies', JSON.stringify(proxies)); } catch (e) {}
+  }, [proxies]);
+
+  useEffect(() => {
+    localStorage.setItem('ghost_proxyType', proxyType);
+  }, [proxyType]);
+
+  useEffect(() => {
+    localStorage.setItem('ghost_threads', threads.toString());
+  }, [threads]);
+
+  useEffect(() => {
+    localStorage.setItem('ghost_bypass', bypassCloudflare.toString());
+    localStorage.setItem('ghost_randomUA', randomUserAgent.toString());
+    localStorage.setItem('ghost_playSound', playSound.toString());
+  }, [bypassCloudflare, randomUserAgent, playSound]);
   const [progress, setProgress] = useState<ProgressState>({
     processed: 0,
     total: 0,
@@ -97,6 +147,11 @@ export default function App() {
     };
   }, []); // Run only once on mount
 
+  const showNotification = (msg: string, sub: string) => {
+    setNotification({ message: msg, sub, visible: true });
+    setTimeout(() => setNotification(prev => ({ ...prev, visible: false })), 4000);
+  };
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'combo' | 'proxy' | 'audio') => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -107,6 +162,7 @@ export default function App() {
       if (audioRef.current) {
         audioRef.current.src = url;
       }
+      showNotification('SOUND UPDATED', 'Notification sound changed successfully');
       return;
     }
 
@@ -120,12 +176,44 @@ export default function App() {
           alert('Invalid format! The Combo file must contain accounts in user:pass format.');
         }
         setCombo(filtered);
+        showNotification('COMBO LOADED', `${filtered.length} accounts imported successfully`);
       } else {
         setProxies(lines);
         if (proxyType === 'none') setProxyType('http');
+        showNotification('PROXY LOADED', `${lines.length} nodes added to the pool`);
       }
     };
     reader.readAsText(file);
+  };
+
+  const fetchOnlineAssets = async (type: 'combo' | 'proxy') => {
+    if (type === 'combo') setIsFetchingCombo(true);
+    else setIsFetchingProxy(true);
+
+    try {
+      const response = await fetch(`/api/fetch-assets?type=${type}`);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Failed to fetch ${type}`);
+      }
+      const data = await response.text();
+      const lines = data.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+      
+      if (type === 'combo') {
+        const filtered = lines.filter(line => line.includes(':'));
+        setCombo(filtered);
+        showNotification('CLOUD COMBO FETCHED', `${filtered.length} new accounts loaded from repository`);
+      } else {
+        setProxies(lines);
+        if (proxyType === 'none') setProxyType('http');
+        showNotification('CLOUD PROXIES FETCHED', `${lines.length} high-speed nodes synchronized`);
+      }
+    } catch (error: any) {
+      alert(`Error fetching ${type}: ${error.message}`);
+    } finally {
+      if (type === 'combo') setIsFetchingCombo(false);
+      else setIsFetchingProxy(false);
+    }
   };
 
 
@@ -177,6 +265,38 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-indigo-500/30">
+      <AnimatePresence>
+        {notification.visible && (
+          <motion.div
+            initial={{ opacity: 0, y: -50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9, y: -20 }}
+            className="fixed top-8 left-1/2 -translate-x-1/2 z-[100] w-[90%] max-w-sm pointer-events-none"
+          >
+            <div className="bg-slate-950 border border-lime-500/50 rounded-2xl p-4 shadow-[0_0_40px_rgba(132,204,22,0.2)] backdrop-blur-xl flex items-center gap-4 overflow-hidden relative">
+              <div className="absolute top-0 left-0 w-1 h-full bg-lime-500 shadow-[0_0_10px_#84cc16]" />
+              <div className="absolute top-0 right-0 w-24 h-24 bg-lime-500/10 blur-3xl rounded-full -mr-12 -mt-12" />
+              
+              <div className="p-2 bg-lime-500/10 rounded-xl">
+                <CheckCircle2 className="w-5 h-5 text-lime-400" />
+              </div>
+              
+              <div className="flex-1">
+                <h4 className="text-sm font-black text-lime-400 uppercase tracking-widest drop-shadow-[0_0_8px_rgba(163,230,53,0.5)]">{notification.message}</h4>
+                <p className="text-[11px] text-slate-400 font-medium mt-0.5">{notification.sub}</p>
+              </div>
+
+              <motion.div 
+                className="absolute bottom-0 left-1 h-[2px] bg-lime-500 shadow-[0_0_5px_#84cc16]"
+                initial={{ width: "0%" }}
+                animate={{ width: "98%" }}
+                transition={{ duration: 4, ease: "linear" }}
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <header className="border-b border-slate-800/50 bg-slate-950/80 backdrop-blur-xl sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 h-20 flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -330,40 +450,64 @@ export default function App() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <label className="cursor-pointer group">
-                      <div className="flex flex-col items-center justify-center gap-3 px-4 py-8 bg-slate-950 border border-slate-800 hover:border-indigo-500/50 hover:bg-indigo-500/[0.02] rounded-3xl transition-all shadow-sm">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="flex flex-col gap-3">
+                      <button 
+                        onClick={() => fetchOnlineAssets('combo')}
+                        disabled={isFetchingCombo || isChecking}
+                        className={cn(
+                          "group h-32 flex flex-col items-center justify-center gap-3 bg-slate-950 border border-slate-800 hover:border-indigo-500/50 hover:bg-indigo-500/[0.02] rounded-3xl transition-all shadow-sm relative overflow-hidden",
+                          isFetchingCombo && "animate-pulse"
+                        )}
+                      >
                         <div className="p-3 bg-slate-900 rounded-2xl group-hover:bg-indigo-500/10 transition-colors">
-                          <Upload className="w-5 h-5 text-slate-400 group-hover:text-indigo-400 transition-colors" />
+                          <RotateCw className={cn("w-5 h-5 text-slate-400 group-hover:text-indigo-400 transition-colors", isFetchingCombo && "animate-spin")} />
                         </div>
                         <div className="text-center">
                           <p className="text-xs font-bold text-slate-200 uppercase tracking-tight">
-                            {combo.length > 0 ? "COMBO LOADED" : "UPLOAD COMBO"}
+                            {isFetchingCombo ? "FETCHING..." : (combo.length > 0 ? "COMBO LOADED" : "FETCH CLOUD COMBO")}
                           </p>
                           <p className="text-[10px] text-slate-600 font-medium mt-1">
-                            {combo.length > 0 ? `${combo.length} items` : ".txt format"}
+                            {combo.length > 0 ? `${combo.length} items from cloud` : "Load from GitHub"}
                           </p>
                         </div>
+                        {isFetchingCombo && <div className="absolute bottom-0 left-0 h-1 bg-indigo-500 animate-[shimmer_2s_infinite]" style={{ width: '100%' }} />}
+                      </button>
+                      <label className="cursor-pointer group flex items-center justify-center gap-2 py-2 border border-slate-800/50 rounded-xl hover:bg-slate-900 transition-all">
+                        <Upload className="w-3 h-3 text-slate-500" />
+                        <span className="text-[10px] font-bold text-slate-500 group-hover:text-slate-300">OR UPLOAD FILE</span>
                         <input type="file" className="hidden" accept=".txt" onChange={(e) => handleFileUpload(e, 'combo')} disabled={isChecking} />
-                      </div>
-                    </label>
+                      </label>
+                    </div>
 
-                    <label className="cursor-pointer group">
-                      <div className="flex flex-col items-center justify-center gap-3 px-4 py-8 bg-slate-950 border border-slate-800 hover:border-indigo-500/50 hover:bg-indigo-500/[0.02] rounded-3xl transition-all shadow-sm">
+                    <div className="flex flex-col gap-3">
+                      <button 
+                        onClick={() => fetchOnlineAssets('proxy')}
+                        disabled={isFetchingProxy || isChecking}
+                        className={cn(
+                          "group h-32 flex flex-col items-center justify-center gap-3 bg-slate-950 border border-slate-800 hover:border-indigo-500/50 hover:bg-indigo-500/[0.02] rounded-3xl transition-all shadow-sm relative overflow-hidden",
+                          isFetchingProxy && "animate-pulse"
+                        )}
+                      >
                         <div className="p-3 bg-slate-900 rounded-2xl group-hover:bg-indigo-500/10 transition-colors">
-                          <Download className="w-5 h-5 text-slate-400 group-hover:text-indigo-400 transition-colors" />
+                          <Globe className={cn("w-5 h-5 text-slate-400 group-hover:text-indigo-400 transition-colors", isFetchingProxy && "animate-spin")} />
                         </div>
                         <div className="text-center">
                           <p className="text-xs font-bold text-slate-200 uppercase tracking-tight">
-                            {proxies.length > 0 ? "PROXY LOADED" : "UPLOAD PROXY"}
+                            {isFetchingProxy ? "FETCHING..." : (proxies.length > 0 ? "PROXY LOADED" : "FETCH CLOUD PROXY")}
                           </p>
                           <p className="text-[10px] text-slate-600 font-medium mt-1">
-                            {proxies.length > 0 ? `${proxies.length} nodes` : "Optional"}
+                            {proxies.length > 0 ? `${proxies.length} nodes active` : "Load from URLs"}
                           </p>
                         </div>
+                        {isFetchingProxy && <div className="absolute bottom-0 left-0 h-1 bg-indigo-500 animate-[shimmer_2s_infinite]" style={{ width: '100%' }} />}
+                      </button>
+                      <label className="cursor-pointer group flex items-center justify-center gap-2 py-2 border border-slate-800/50 rounded-xl hover:bg-slate-900 transition-all">
+                        <Upload className="w-3 h-3 text-slate-500" />
+                        <span className="text-[10px] font-bold text-slate-500 group-hover:text-slate-300">OR UPLOAD FILE</span>
                         <input type="file" className="hidden" accept=".txt" onChange={(e) => handleFileUpload(e, 'proxy')} disabled={isChecking} />
-                      </div>
-                    </label>
+                      </label>
+                    </div>
                   </div>
 
                   <div className="flex flex-col gap-4">

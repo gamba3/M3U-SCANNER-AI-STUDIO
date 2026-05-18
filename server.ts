@@ -51,6 +51,93 @@ async function startServer() {
 
   app.use(express.json({ limit: '50mb' }));
 
+  app.get("/api/fetch-assets", async (req, res) => {
+    const { type } = req.query;
+
+    try {
+      if (type === 'combo') {
+        const repoPath = 'gamba3/Combo-SILENTGHOST-STORAGE';
+        const branches = ['main', 'master'];
+        const possibleFiles = ['Combo.txt', 'combo.txt', 'Combo_SILENTGHOST.txt', 'LIST.txt'];
+        
+        let comboData = '';
+
+        // 1. Try common direct paths
+        for (const branch of branches) {
+          for (const file of possibleFiles) {
+            try {
+              const url = `https://raw.githubusercontent.com/${repoPath}/${branch}/${file}`;
+              const response = await axios.get(url, { timeout: 5000 });
+              if (response.data && typeof response.data === 'string' && response.data.includes(':')) {
+                comboData = response.data;
+                break;
+              }
+            } catch (e) {}
+          }
+          if (comboData) break;
+        }
+
+        // 2. Fallback: Try GitHub API to list files if direct hits fail
+        if (!comboData) {
+          try {
+            const apiRes = await axios.get(`https://api.github.com/repos/${repoPath}/contents/`, { 
+              timeout: 5000,
+              headers: { 'User-Agent': 'Axios-Scanner' }
+            });
+            if (Array.isArray(apiRes.data)) {
+              const txtFiles = apiRes.data.filter((f: any) => f.name.toLowerCase().endsWith('.txt') && f.type === 'file');
+              for (const file of txtFiles) {
+                try {
+                  const response = await axios.get(file.download_url, { timeout: 5000 });
+                  if (response.data && typeof response.data === 'string' && response.data.includes(':')) {
+                    comboData = response.data;
+                    break;
+                  }
+                } catch (e) {}
+              }
+            }
+          } catch (e) {}
+        }
+
+        if (!comboData) {
+          return res.status(404).json({ error: "Could not find valid combo list in repository. Please verify the file name or upload manually." });
+        }
+        return res.send(comboData);
+      }
+
+      if (type === 'proxy') {
+        const proxyUrls = [
+          'https://api.proxyscrape.com/v2/?request=getproxies&protocol=http&timeout=10000&country=all&ssl=all&anonymity=all&simplified=true',
+          'https://api.proxyscrape.com/v2/?request=getproxies&protocol=socks4&timeout=10000&country=all',
+          'https://api.proxyscrape.com/v2/?request=getproxies&protocol=socks5&timeout=10000&country=all',
+          'https://github.com/TheSpeedX/PROXY-List/raw/master/http.txt',
+          'https://github.com/TheSpeedX/PROXY-List/raw/master/socks4.txt',
+          'https://github.com/TheSpeedX/PROXY-List/raw/master/socks5.txt'
+        ];
+
+        const results = await Promise.allSettled(proxyUrls.map(url => axios.get(url, { timeout: 10000 })));
+        let allProxies: string[] = [];
+
+        results.forEach(res => {
+          if (res.status === 'fulfilled' && res.value.data) {
+            const lines = String(res.value.data).split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+            allProxies = [...allProxies, ...lines];
+          }
+        });
+
+        const uniqueProxies = Array.from(new Set(allProxies));
+        if (uniqueProxies.length === 0) {
+          return res.status(404).json({ error: "Failed to fetch any proxies from online sources." });
+        }
+        return res.send(uniqueProxies.join('\n'));
+      }
+
+      res.status(400).json({ error: "Invalid asset type" });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   io.on("connection", (socket) => {
     socket.on("startCheck", async (data: CheckRequest) => {
       const { portal, combo, threads, proxies, proxyType, bypassCloudflare, randomUserAgent } = data;
