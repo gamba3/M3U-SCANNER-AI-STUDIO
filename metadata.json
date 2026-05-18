@@ -1,0 +1,8 @@
+{
+  "name": "M3U Pro Ghost Checker",
+  "description": "Professional IPTV account checker with real-time stats and Xtream API integration.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
