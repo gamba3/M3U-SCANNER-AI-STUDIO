@@ -107,7 +107,7 @@ async function startServer() {
   const app = express();
   const httpServer = http.createServer(app);
   const io = new Server(httpServer, { maxHttpBufferSize: 1e8 });
-  const PORT = Number(process.env.PORT) || 3000;
+  const PORT = Number(process.env.PORT) || 5173;
 
   app.use(express.json({ limit: "50mb" }));
 
