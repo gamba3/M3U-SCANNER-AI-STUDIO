@@ -24,11 +24,22 @@ export interface ProgressState {
   proxyErrors?: number;
 }
 
+export type ProxyType = "http" | "socks4" | "socks5" | "none";
+
 export interface CheckRequest {
   portal: string;
   combo: string[]; // Format "user:pass"
   threads: number;
   proxies: string[];
+  proxyType: ProxyType;
   bypassCloudflare: boolean;
   randomUserAgent: boolean;
+}
+
+export interface FinishedPayload {
+  hits: number;
+  bad: number;
+  proxyErrors: number;
+  aborted?: boolean;
+  error?: string;
 }
