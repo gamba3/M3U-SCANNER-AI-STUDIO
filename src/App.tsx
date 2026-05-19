@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { 
   Ghost, 
@@ -46,7 +46,8 @@ export default function App() {
     return (localStorage.getItem('ghost_proxyType') as any) || 'none';
   });
   const [threads, setThreads] = useState(() => {
-    return parseInt(localStorage.getItem('ghost_threads') || '150');
+    const v = parseInt(localStorage.getItem('ghost_threads') || '150', 10);
+    return Number.isFinite(v) && v > 0 ? Math.min(v, 1000) : 150;
   });
   
   // Settings
@@ -106,6 +107,7 @@ export default function App() {
   const [socket, setSocket] = useState<Socket | null>(null);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const soundUrlRef = useRef<string | null>(null);
   
   // Use refs for settings that are read inside the socket closure to avoid re-wiring
   const playSoundRef = useRef(playSound);
@@ -113,8 +115,13 @@ export default function App() {
     playSoundRef.current = playSound;
   }, [playSound]);
 
+  const showNotification = useCallback((msg: string, sub: string) => {
+    setNotification({ message: msg, sub, visible: true });
+    window.setTimeout(() => setNotification(prev => ({ ...prev, visible: false })), 4000);
+  }, []);
+
   useEffect(() => {
-    const newSocket = io();
+    const newSocket = io({ transports: ['websocket', 'polling'] });
     setSocket(newSocket);
 
     newSocket.on('progress', (data: ProgressState) => {
@@ -125,44 +132,56 @@ export default function App() {
       setHitsList((prev) => [hit, ...prev]);
       if (playSoundRef.current && audioRef.current) {
         audioRef.current.currentTime = 0;
-        audioRef.current.play().catch(e => console.error("Audio play failed:", e));
+        audioRef.current.play().catch(() => {});
       }
     });
 
     newSocket.on('hitUpdate', (updatedHit: HitResult) => {
       setHitsList((prev) => prev.map(h => 
         (h.username === updatedHit.username && h.password === updatedHit.password) 
-          ? updatedHit 
+          ? { ...h, ...updatedHit }
           : h
       ));
     });
 
-    newSocket.on('finished', (data?: { error?: string }) => {
+    newSocket.on('finished', (data?: { error?: string; aborted?: boolean; hits?: number }) => {
       setIsChecking(false);
-      if (data?.error) alert(`Error: ${data.error}`);
+      if (data?.error) {
+        showNotification('SCAN ERROR', data.error);
+      } else if (data?.aborted) {
+        showNotification('SCAN ABORTED', 'Operation terminated by user');
+      } else {
+        showNotification('SCAN COMPLETE', `Captured ${data?.hits ?? 0} valid hits`);
+      }
+    });
+
+    newSocket.on('connect_error', (err) => {
+      console.error('[v0] socket connect_error:', err.message);
     });
 
     return () => {
       newSocket.disconnect();
     };
-  }, []); // Run only once on mount
-
-  const showNotification = (msg: string, sub: string) => {
-    setNotification({ message: msg, sub, visible: true });
-    setTimeout(() => setNotification(prev => ({ ...prev, visible: false })), 4000);
-  };
+  }, [showNotification]); // showNotification is stable via useCallback
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'combo' | 'proxy' | 'audio') => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     if (type === 'audio') {
+      // Revoke previous blob URL to prevent memory leaks
+      if (soundUrlRef.current) {
+        try { URL.revokeObjectURL(soundUrlRef.current); } catch {}
+      }
       const url = URL.createObjectURL(file);
+      soundUrlRef.current = url;
       setSoundUrl(url);
       if (audioRef.current) {
         audioRef.current.src = url;
       }
       showNotification('SOUND UPDATED', 'Notification sound changed successfully');
+      // Reset input so the same file can be re-selected
+      e.target.value = '';
       return;
     }
 
@@ -172,16 +191,29 @@ export default function App() {
       const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
       if (type === 'combo') {
         const filtered = lines.filter(line => line.includes(':'));
-        if (filtered.length === 0 && lines.length > 0) {
-          alert('Invalid format! The Combo file must contain accounts in user:pass format.');
+        if (filtered.length === 0) {
+          showNotification('INVALID FORMAT', 'Combo file must contain user:pass entries');
+          e.target.value = '';
+          return;
         }
         setCombo(filtered);
         showNotification('COMBO LOADED', `${filtered.length} accounts imported successfully`);
       } else {
-        setProxies(lines);
+        const filtered = lines.filter(line => /\d+\.\d+\.\d+\.\d+:\d+/.test(line) || /^(https?|socks[45]):\/\//i.test(line));
+        if (filtered.length === 0) {
+          showNotification('INVALID FORMAT', 'Proxy file must contain ip:port entries');
+          e.target.value = '';
+          return;
+        }
+        setProxies(filtered);
         if (proxyType === 'none') setProxyType('http');
-        showNotification('PROXY LOADED', `${lines.length} nodes added to the pool`);
+        showNotification('PROXY LOADED', `${filtered.length} nodes added to the pool`);
       }
+      e.target.value = '';
+    };
+    reader.onerror = () => {
+      showNotification('READ ERROR', 'Failed to read the selected file');
+      e.target.value = '';
     };
     reader.readAsText(file);
   };
@@ -193,8 +225,12 @@ export default function App() {
     try {
       const response = await fetch(`/api/fetch-assets?type=${type}`);
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Failed to fetch ${type}`);
+        let errMsg = `Failed to fetch ${type}`;
+        try {
+          const errorData = await response.json();
+          errMsg = errorData.error || errMsg;
+        } catch {}
+        throw new Error(errMsg);
       }
       const data = await response.text();
       const lines = data.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
@@ -209,7 +245,7 @@ export default function App() {
         showNotification('CLOUD PROXIES FETCHED', `${lines.length} high-speed nodes synchronized`);
       }
     } catch (error: any) {
-      alert(`Error fetching ${type}: ${error.message}`);
+      showNotification('FETCH FAILED', error.message || 'Network error');
     } finally {
       if (type === 'combo') setIsFetchingCombo(false);
       else setIsFetchingProxy(false);
@@ -218,7 +254,18 @@ export default function App() {
 
 
   const startCheck = () => {
-    if (!portal || combo.length === 0 || !socket) return;
+    if (!portal.trim()) {
+      showNotification('MISSING PORTAL', 'Please enter a target portal URL');
+      return;
+    }
+    if (combo.length === 0) {
+      showNotification('MISSING COMBO', 'Please load a combo list first');
+      return;
+    }
+    if (!socket || !socket.connected) {
+      showNotification('SOCKET OFFLINE', 'Engine connection unavailable, refresh page');
+      return;
+    }
     
     setHitsList([]);
     setProgress({
@@ -234,34 +281,55 @@ export default function App() {
     socket.emit('startCheck', { 
       portal: portal.trim(), 
       combo, 
-      threads, 
+      threads: Number.isFinite(threads) && threads > 0 ? Math.min(threads, 1000) : 150, 
       proxies, 
+      proxyType,
       bypassCloudflare, 
       randomUserAgent 
     });
   };
 
   const stopCheck = () => {
-    window.location.reload(); 
+    if (socket && socket.connected) {
+      socket.emit('stopCheck');
+    }
+    // UI will be reset when 'finished' event arrives
   };
 
   const downloadHits = () => {
+    if (hitsList.length === 0) return;
     const text = hitsList.map(h => 
-      `URL: ${portal}\nUser: ${h.username}\nPass: ${h.password}\nExpiry: ${h.expiry}\nMax Connections: ${h.maxCons}\nStreams: Live(${h.liveCount}) VOD(${h.vodCount}) Series(${h.seriesCount})\n-------------------`
+      `URL: ${portal}\nUser: ${h.username}\nPass: ${h.password}\nExpiry: ${h.expiry ?? 'N/A'}\nMax Connections: ${h.maxCons ?? 'N/A'}\nStreams: Live(${h.liveCount ?? 0}) VOD(${h.vodCount ?? 0}) Series(${h.seriesCount ?? 0})\nM3U: ${h.m3uLink ?? ''}\n-------------------`
     ).join('\n\n');
     
+    const blob = new Blob([text], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
     const element = document.createElement("a");
-    const file = new Blob([text], {type: 'text/plain'});
-    element.href = URL.createObjectURL(file);
+    element.href = url;
     element.download = `hits_${new Date().toISOString().split('T')[0]}.txt`;
     document.body.appendChild(element);
     element.click();
+    document.body.removeChild(element);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
-  const filteredHits = hitsList.filter(h => 
-    h.username.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    h.status?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Cleanup blob URL on unmount
+  useEffect(() => {
+    return () => {
+      if (soundUrlRef.current) {
+        try { URL.revokeObjectURL(soundUrlRef.current); } catch {}
+      }
+    };
+  }, []);
+
+  const filteredHits = useMemo(() => {
+    const term = searchTerm.toLowerCase();
+    if (!term) return hitsList;
+    return hitsList.filter(h =>
+      h.username.toLowerCase().includes(term) ||
+      h.status?.toLowerCase().includes(term)
+    );
+  }, [hitsList, searchTerm]);
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-indigo-500/30">
@@ -396,8 +464,12 @@ export default function App() {
                       <input
                         type="number"
                         value={threads}
-                        onChange={(e) => setThreads(parseInt(e.target.value))}
+                        onChange={(e) => {
+                          const v = parseInt(e.target.value, 10);
+                          setThreads(Number.isFinite(v) && v > 0 ? Math.min(v, 1000) : 1);
+                        }}
                         disabled={isChecking}
+                        min={1}
                         max={1000}
                         className="block w-full pl-12 pr-4 py-4 bg-slate-950 border border-slate-800 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none text-sm transition-all"
                       />
@@ -675,7 +747,7 @@ export default function App() {
                           <td className="px-8 py-6">
                             <div className="flex items-center gap-4">
                               <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 flex items-center justify-center font-black text-indigo-400 text-sm border border-indigo-500/20">
-                                {hit.username[0].toUpperCase()}
+                                {(hit.username?.[0] || '?').toUpperCase()}
                               </div>
                               <div>
                                 <div className="text-sm font-bold text-white group-hover:text-indigo-300 transition-colors">{hit.username}</div>
@@ -684,23 +756,31 @@ export default function App() {
                             </div>
                           </td>
                           <td className="px-8 py-6">
-                            <div className="flex items-center gap-3">
-                              <div className="flex-1 max-w-[80px] h-1.5 bg-slate-950 rounded-full overflow-hidden border border-slate-800/50">
-                                 <div 
-                                   className={cn(
-                                     "h-full transition-all",
-                                     hit.activeCons === hit.maxCons ? "bg-rose-500" : "bg-emerald-500"
-                                   )} 
-                                   style={{ width: `${(hit.activeCons / (hit.maxCons || 1)) * 100}%` }}
-                                 />
-                              </div>
-                              <span className={cn(
-                                "text-[11px] font-bold px-2 py-0.5 rounded-lg",
-                                hit.activeCons === hit.maxCons ? "text-rose-400 bg-rose-400/10" : "text-emerald-400 bg-emerald-400/10"
-                              )}>
-                                {hit.activeCons} / {hit.maxCons}
-                              </span>
-                            </div>
+                            {(() => {
+                              const active = parseInt(String(hit.activeCons ?? '0'), 10) || 0;
+                              const max = parseInt(String(hit.maxCons ?? '0'), 10) || 0;
+                              const ratio = max > 0 ? Math.min(100, (active / max) * 100) : 0;
+                              const full = max > 0 && active >= max;
+                              return (
+                                <div className="flex items-center gap-3">
+                                  <div className="flex-1 max-w-[80px] h-1.5 bg-slate-950 rounded-full overflow-hidden border border-slate-800/50">
+                                    <div
+                                      className={cn(
+                                        "h-full transition-all",
+                                        full ? "bg-rose-500" : "bg-emerald-500"
+                                      )}
+                                      style={{ width: `${ratio}%` }}
+                                    />
+                                  </div>
+                                  <span className={cn(
+                                    "text-[11px] font-bold px-2 py-0.5 rounded-lg",
+                                    full ? "text-rose-400 bg-rose-400/10" : "text-emerald-400 bg-emerald-400/10"
+                                  )}>
+                                    {active} / {max}
+                                  </span>
+                                </div>
+                              );
+                            })()}
                           </td>
                           <td className="px-8 py-6">
                             <div className="flex items-center gap-1.5">
@@ -725,7 +805,13 @@ export default function App() {
                           </td>
                           <td className="px-8 py-6 text-right">
                              <button 
-                               onClick={() => navigator.clipboard.writeText(`${portal}/get.php?username=${hit.username}&password=${hit.password}&type=m3u_plus`)}
+                               onClick={() => {
+                                 const link = hit.m3uLink || `${portal}/get.php?username=${encodeURIComponent(hit.username)}&password=${encodeURIComponent(hit.password)}&type=m3u_plus`;
+                                 navigator.clipboard.writeText(link).then(
+                                   () => showNotification('M3U COPIED', 'Link copied to clipboard'),
+                                   () => showNotification('COPY FAILED', 'Clipboard unavailable')
+                                 );
+                               }}
                                className="px-4 py-2 bg-slate-950 border border-slate-800 hover:border-indigo-500/50 hover:bg-slate-900 text-slate-400 hover:text-indigo-400 rounded-xl transition-all font-bold text-[10px] uppercase tracking-widest active:scale-95"
                              >
                                Copy M3U
