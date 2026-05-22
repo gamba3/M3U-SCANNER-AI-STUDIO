@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { 
-  Ghost, 
-  Activity, 
-  CheckCircle2, 
-  XCircle, 
-  Play, 
-  Square, 
-  Globe, 
-  Upload, 
+import {
+  Ghost,
+  Activity,
+  CheckCircle2,
+  XCircle,
+  Play,
+  Square,
+  Globe,
+  Upload,
   Download,
   Search,
   Timer,
@@ -47,7 +47,7 @@ const playTone = (freq: number, duration: number, type: OscillatorType = 'sine',
     osc.start();
     osc.stop(ctx.currentTime + duration / 1000);
     setTimeout(() => ctx.close(), duration + 100);
-  } catch (e) {}
+  } catch (e) { }
 };
 
 const SOUNDS = {
@@ -66,7 +66,7 @@ const SOUNDS = {
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'engine' | 'settings'>('engine');
-  
+
   const [portal, setPortal] = useState(() => localStorage.getItem('ghost_portal') || '');
   const [combo, setCombo] = useState<string[]>(() => {
     try {
@@ -80,13 +80,10 @@ export default function App() {
       return saved ? JSON.parse(saved) : [];
     } catch (e) { return []; }
   });
-  const [proxyType, setProxyType] = useState<'http' | 'socks4' | 'socks5' | 'none'>(() => {
-    return (localStorage.getItem('ghost_proxyType') as any) || 'none';
-  });
   const [threads, setThreads] = useState(() => {
-    return parseInt(localStorage.getItem('ghost_threads') || '500');
+    return parseInt(localStorage.getItem('ghost_threads') || '150');
   });
-  
+
   // Settings
   const [bypassCloudflare, setBypassCloudflare] = useState(() => {
     return localStorage.getItem('ghost_bypass') !== 'false';
@@ -118,16 +115,12 @@ export default function App() {
   }, [portal]);
 
   useEffect(() => {
-    try { localStorage.setItem('ghost_combo', JSON.stringify(combo)); } catch (e) {}
+    try { localStorage.setItem('ghost_combo', JSON.stringify(combo)); } catch (e) { }
   }, [combo]);
 
   useEffect(() => {
-    try { localStorage.setItem('ghost_proxies', JSON.stringify(proxies)); } catch (e) {}
+    try { localStorage.setItem('ghost_proxies', JSON.stringify(proxies)); } catch (e) { }
   }, [proxies]);
-
-  useEffect(() => {
-    localStorage.setItem('ghost_proxyType', proxyType);
-  }, [proxyType]);
 
   useEffect(() => {
     localStorage.setItem('ghost_threads', threads.toString());
@@ -140,7 +133,7 @@ export default function App() {
     localStorage.setItem('ghost_fetchCategories', fetchCategories.toString());
     localStorage.setItem('ghost_uiSounds', uiSounds.toString());
   }, [bypassCloudflare, randomUserAgent, playSound, fetchCategories, uiSounds]);
-  
+
   const [progress, setProgress] = useState<ProgressState>({
     processed: 0,
     total: 0,
@@ -164,7 +157,7 @@ export default function App() {
       audioRef.current.src = soundUrl;
     }
   }, [soundUrl]);
-  
+
   // Use refs for settings that are read inside the socket closure to avoid re-wiring
   const playSoundRef = useRef(playSound);
   useEffect(() => {
@@ -202,15 +195,15 @@ export default function App() {
         SOUNDS.hit();
         if (audioRef.current) {
           audioRef.current.currentTime = 0;
-          audioRef.current.play().catch(() => {});
+          audioRef.current.play().catch(() => { });
         }
       }
     });
 
     newSocket.on('hitUpdate', (updatedHit: HitResult) => {
-      setHitsList((prev) => prev.map(h => 
-        (h.username === updatedHit.username && h.password === updatedHit.password) 
-          ? updatedHit 
+      setHitsList((prev) => prev.map(h =>
+        (h.username === updatedHit.username && h.password === updatedHit.password)
+          ? updatedHit
           : h
       ));
     });
@@ -264,7 +257,6 @@ export default function App() {
         showNotification('COMBO LOADED', `${filtered.length} accounts imported successfully`);
       } else {
         setProxies(lines);
-        if (proxyType === 'none') setProxyType('http');
         if (uiSounds) SOUNDS.fetch();
         showNotification('PROXY LOADED', `${lines.length} nodes added to the pool`);
       }
@@ -285,14 +277,13 @@ export default function App() {
       }
       const data = await response.text();
       const lines = data.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
-      
+
       if (type === 'combo') {
         const filtered = lines.filter(line => line.includes(':'));
         setCombo(filtered);
         showNotification('CLOUD COMBO FETCHED', `${filtered.length} new accounts loaded from repository`);
       } else {
         setProxies(lines);
-        if (proxyType === 'none') setProxyType('http');
         showNotification('CLOUD PROXIES FETCHED', `${lines.length} high-speed nodes synchronized`);
       }
     } catch (error: any) {
@@ -336,7 +327,7 @@ export default function App() {
       console.warn('[SOCKET] Socket not connected, emit will be buffered');
     }
     if (uiSounds) SOUNDS.start();
-    
+
     setHitsList([]);
     setProgress({
       processed: 0,
@@ -352,13 +343,12 @@ export default function App() {
     });
     setIsChecking(true);
     console.log('[SOCKET] Emitting startCheck, connected:', socket.connected);
-    socket.emit('startCheck', { 
-      portal: portal.trim(), 
-      combo, 
-      threads, 
-      proxies, 
-      proxyType,
-      bypassCloudflare, 
+    socket.emit('startCheck', {
+      portal: portal.trim(),
+      combo,
+      threads,
+      proxies,
+      bypassCloudflare,
       randomUserAgent,
       fetchCategories,
     }, (ack: any) => {
@@ -401,7 +391,7 @@ export default function App() {
 
   const downloadHits = () => {
     if (uiSounds) SOUNDS.download();
-    const text = hitsList.map(h => 
+    const text = hitsList.map(h =>
       `╔══════════════════════════════════╗\n` +
       `  Host: ${portal}\n` +
       `  User: ${h.username}\n` +
@@ -417,17 +407,17 @@ export default function App() {
       `  Formats: ${h.outputFormats || 'N/A'}\n` +
       `╚══════════════════════════════════╝`
     ).join('\n\n');
-    
+
     const element = document.createElement("a");
-    const file = new Blob([text], {type: 'text/plain'});
+    const file = new Blob([text], { type: 'text/plain' });
     element.href = URL.createObjectURL(file);
     element.download = `hits_${new Date().toISOString().split('T')[0]}.txt`;
     document.body.appendChild(element);
     element.click();
   };
 
-  const filteredHits = hitsList.filter(h => 
-    h.username.toLowerCase().includes(searchTerm.toLowerCase()) || 
+  const filteredHits = hitsList.filter(h =>
+    h.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
     h.status?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -459,17 +449,17 @@ export default function App() {
             <div className="bg-slate-950 border border-lime-500/50 rounded-2xl p-4 shadow-[0_0_40px_rgba(132,204,22,0.2)] backdrop-blur-xl flex items-center gap-4 overflow-hidden relative">
               <div className="absolute top-0 left-0 w-1 h-full bg-lime-500 shadow-[0_0_10px_#84cc16]" />
               <div className="absolute top-0 right-0 w-24 h-24 bg-lime-500/10 blur-3xl rounded-full -mr-12 -mt-12" />
-              
+
               <div className="p-2 bg-lime-500/10 rounded-xl">
                 <CheckCircle2 className="w-5 h-5 text-lime-400" />
               </div>
-              
+
               <div className="flex-1">
                 <h4 className="text-sm font-black text-lime-400 uppercase tracking-widest drop-shadow-[0_0_8px_rgba(163,230,53,0.5)]">{notification.message}</h4>
                 <p className="text-[11px] text-slate-400 font-medium mt-0.5">{notification.sub}</p>
               </div>
 
-              <motion.div 
+              <motion.div
                 className="absolute bottom-0 left-1 h-[2px] bg-lime-500 shadow-[0_0_5px_#84cc16]"
                 initial={{ width: "0%" }}
                 animate={{ width: "98%" }}
@@ -493,22 +483,22 @@ export default function App() {
               <p className="text-[10px] text-slate-500 font-bold tracking-[0.2em] mt-1">SPECTRAL_ENGINE_v3</p>
             </div>
           </div>
-          
+
           <div className="flex items-center gap-6">
             <nav className="flex bg-slate-900 p-1 rounded-xl border border-slate-800">
-              <button 
+              <button
                 onClick={() => setActiveTab('engine')}
                 className={cn(
-                  "px-6 py-2 rounded-lg text-xs font-bold transition-all", 
+                  "px-6 py-2 rounded-lg text-xs font-bold transition-all",
                   activeTab === 'engine' ? "bg-slate-800 text-indigo-400 shadow-sm" : "text-slate-500 hover:text-slate-300"
                 )}
               >
                 ENGINE
               </button>
-              <button 
+              <button
                 onClick={() => setActiveTab('settings')}
                 className={cn(
-                  "px-6 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2", 
+                  "px-6 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2",
                   activeTab === 'settings' ? "bg-slate-800 text-indigo-400 shadow-sm" : "text-slate-500 hover:text-slate-300"
                 )}
               >
@@ -516,7 +506,7 @@ export default function App() {
                 SETTINGS
               </button>
             </nav>
-            
+
             <div className="hidden md:flex items-center gap-3 px-4 py-2 bg-slate-900/50 rounded-xl border border-slate-800/50">
               <div className={cn("w-2 h-2 rounded-full animate-pulse", isChecking ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]" : "bg-amber-500")} />
               <span className="text-[10px] font-bold text-slate-400 tracking-wider">
@@ -542,13 +532,13 @@ export default function App() {
                       <p className="text-[10px] text-slate-500 font-medium">SET UP YOUR SCAN TARGETS</p>
                     </div>
                   </div>
-                  
+
                   <div className="flex gap-3">
                     <div className="px-3 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-[10px] font-bold">
-                       <span className="text-slate-500 mr-2">PROXY:</span>
-                       <span className={proxies.length > 0 ? "text-indigo-400" : "text-slate-600"}>
-                         {proxies.length > 0 ? `${proxies.length} LOADED` : "NONE"}
-                       </span>
+                      <span className="text-slate-500 mr-2">PROXY:</span>
+                      <span className={proxies.length > 0 ? "text-indigo-400" : "text-slate-600"}>
+                        {proxies.length > 0 ? `${proxies.length} LOADED` : "NONE"}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -594,12 +584,12 @@ export default function App() {
                       <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                         <Zap className="h-4 w-4 text-slate-600 group-focus-within:text-indigo-400 transition-colors" />
                       </div>
-                        <input
-                          type="number"
-                          value={threads}
-                          onChange={(e) => setThreads(parseInt(e.target.value))}
-                          disabled={isChecking}
-                          max={2000}
+                      <input
+                        type="number"
+                        value={threads}
+                        onChange={(e) => setThreads(parseInt(e.target.value))}
+                        disabled={isChecking}
+                        max={2000}
                         className="block w-full pl-12 pr-4 py-4 bg-slate-950 border border-slate-800 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none text-sm transition-all"
                       />
                     </div>
@@ -613,24 +603,24 @@ export default function App() {
                       <span className="text-xs font-bold text-slate-400 tracking-wide uppercase">Evasion Protocol</span>
                     </div>
                     <div className="space-y-2">
-                       <div className="flex justify-between items-center text-[11px] font-medium transition-opacity">
-                         <span className="text-slate-500">Cloudflare Shield</span>
-                         <span className={cn("px-2 py-0.5 rounded-md", bypassCloudflare ? "bg-emerald-500/10 text-emerald-400" : "bg-slate-800 text-slate-600")}>
-                           {bypassCloudflare ? "ENABLED" : "DISABLED"}
-                         </span>
-                       </div>
-                       <div className="flex justify-between items-center text-[11px] font-medium transition-opacity">
-                         <span className="text-slate-500">Agent Spoofing</span>
-                         <span className={cn("px-2 py-0.5 rounded-md", randomUserAgent ? "bg-indigo-500/10 text-indigo-400" : "bg-slate-800 text-slate-600")}>
-                           {randomUserAgent ? "ACTIVE" : "INACTIVE"}
-                         </span>
-                       </div>
-                       <div className="flex justify-between items-center text-[11px] font-medium transition-opacity">
-                         <span className="text-slate-500">Fetch Categories</span>
-                         <span className={cn("px-2 py-0.5 rounded-md", fetchCategories ? "bg-lime-500/10 text-lime-400" : "bg-slate-800 text-slate-600")}>
-                           {fetchCategories ? "ENABLED" : "DISABLED"}
-                         </span>
-                       </div>
+                      <div className="flex justify-between items-center text-[11px] font-medium transition-opacity">
+                        <span className="text-slate-500">Cloudflare Shield</span>
+                        <span className={cn("px-2 py-0.5 rounded-md", bypassCloudflare ? "bg-emerald-500/10 text-emerald-400" : "bg-slate-800 text-slate-600")}>
+                          {bypassCloudflare ? "ENABLED" : "DISABLED"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center text-[11px] font-medium transition-opacity">
+                        <span className="text-slate-500">Agent Spoofing</span>
+                        <span className={cn("px-2 py-0.5 rounded-md", randomUserAgent ? "bg-indigo-500/10 text-indigo-400" : "bg-slate-800 text-slate-600")}>
+                          {randomUserAgent ? "ACTIVE" : "INACTIVE"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center text-[11px] font-medium transition-opacity">
+                        <span className="text-slate-500">Fetch Categories</span>
+                        <span className={cn("px-2 py-0.5 rounded-md", fetchCategories ? "bg-lime-500/10 text-lime-400" : "bg-slate-800 text-slate-600")}>
+                          {fetchCategories ? "ENABLED" : "DISABLED"}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
@@ -640,24 +630,24 @@ export default function App() {
                       <span className="text-xs font-bold text-slate-400 tracking-wide uppercase">System Overlays</span>
                     </div>
                     <div className="space-y-2">
-                       <div className="flex justify-between items-center text-[11px] font-medium">
-                         <span className="text-slate-500">Proxy Rotation</span>
-                         <span className={cn("px-2 py-0.5 rounded-md", proxies.length > 0 ? "bg-indigo-400/10 text-indigo-400" : "bg-slate-800 text-slate-600")}>
-                           {proxies.length > 0 ? "DYNAMIC" : "STATIC"}
-                         </span>
-                       </div>
-                       <div className="flex justify-between items-center text-[11px] font-medium">
-                         <span className="text-slate-500">Audio Feedback</span>
-                         <span className={cn("px-2 py-0.5 rounded-md", playSound ? "bg-emerald-500/10 text-emerald-400" : "bg-slate-800 text-slate-600")}>
-                           {playSound ? "ACTIVE" : "MUTED"}
-                         </span>
-                       </div>
-                       <div className="flex justify-between items-center text-[11px] font-medium">
-                         <span className="text-slate-500">File Export</span>
-                         <span className="px-2 py-0.5 rounded-md bg-indigo-400/10 text-indigo-400">
-                           AUTO
-                         </span>
-                       </div>
+                      <div className="flex justify-between items-center text-[11px] font-medium">
+                        <span className="text-slate-500">Proxy Rotation</span>
+                        <span className={cn("px-2 py-0.5 rounded-md", proxies.length > 0 ? "bg-indigo-400/10 text-indigo-400" : "bg-slate-800 text-slate-600")}>
+                          {proxies.length > 0 ? "DYNAMIC" : "STATIC"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center text-[11px] font-medium">
+                        <span className="text-slate-500">Audio Feedback</span>
+                        <span className={cn("px-2 py-0.5 rounded-md", playSound ? "bg-emerald-500/10 text-emerald-400" : "bg-slate-800 text-slate-600")}>
+                          {playSound ? "ACTIVE" : "MUTED"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center text-[11px] font-medium">
+                        <span className="text-slate-500">File Export</span>
+                        <span className="px-2 py-0.5 rounded-md bg-indigo-400/10 text-indigo-400">
+                          AUTO
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -665,7 +655,7 @@ export default function App() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="flex flex-col gap-3">
-                      <button 
+                      <button
                         onClick={() => fetchOnlineAssets('combo')}
                         disabled={isFetchingCombo || isChecking}
                         className={cn(
@@ -694,7 +684,7 @@ export default function App() {
                     </div>
 
                     <div className="flex flex-col gap-3">
-                      <button 
+                      <button
                         onClick={() => fetchOnlineAssets('proxy')}
                         disabled={isFetchingProxy || isChecking}
                         className={cn(
@@ -724,13 +714,13 @@ export default function App() {
                   </div>
 
                   <div className="flex flex-col gap-4">
-                    <button 
+                    <button
                       onClick={isChecking ? stopCheck : startCheck}
                       disabled={!portal || combo.length === 0}
                       className={cn(
                         "flex-1 px-8 py-4 rounded-[2rem] font-bold flex items-center justify-center gap-4 transition-all active:scale-[0.98] disabled:opacity-30 disabled:grayscale",
-                        isChecking 
-                          ? "bg-rose-500 hover:bg-rose-600 text-white shadow-xl shadow-rose-500/20" 
+                        isChecking
+                          ? "bg-rose-500 hover:bg-rose-600 text-white shadow-xl shadow-rose-500/20"
                           : "bg-white hover:bg-slate-100 text-slate-950 shadow-xl"
                       )}
                     >
@@ -807,6 +797,24 @@ export default function App() {
                     </div>
                   </div>
 
+                  {/* Proxy Pool & ETA Stats */}
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl text-center">
+                      <p className="text-[9px] font-bold text-slate-600 uppercase mb-1">Proxy Pool</p>
+                      <p className="text-lg font-black text-indigo-400">{progress.proxyPoolSize ?? '—'}</p>
+                    </div>
+                    <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl text-center">
+                      <p className="text-[9px] font-bold text-slate-600 uppercase mb-1">Dead</p>
+                      <p className="text-lg font-black text-rose-400">{progress.deadProxies ?? 0}</p>
+                    </div>
+                    <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl text-center">
+                      <p className="text-[9px] font-bold text-slate-600 uppercase mb-1">ETA</p>
+                      <p className="text-lg font-black text-amber-400">
+                        {progress.eta ? (progress.eta > 3600 ? `${Math.floor(progress.eta / 3600)}h${Math.floor((progress.eta % 3600) / 60)}m` : progress.eta > 60 ? `${Math.floor(progress.eta / 60)}m${progress.eta % 60}s` : `${progress.eta}s`) : '—'}
+                      </p>
+                    </div>
+                  </div>
+
                   {/* Status Code Display */}
                   <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl">
                     <div className="flex items-center justify-between">
@@ -829,42 +837,42 @@ export default function App() {
                   </div>
 
                   <div className="space-y-4 pt-4">
-                     <div className="flex justify-between items-end">
-                       <div>
-                         <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.1em]">Engine Progress</p>
-                         <p className="text-xl font-black text-white">{progress.percent}%</p>
-                       </div>
-                       <div className="text-right">
-                         <p className="text-[10px] font-bold text-slate-600 uppercase">Items Processed</p>
-                         <p className="text-xs font-mono font-bold text-slate-400">{progress.processed} / {progress.total}</p>
-                       </div>
-                     </div>
-                     <div className="h-4 w-full bg-slate-950 rounded-full border border-slate-800 overflow-hidden p-1 shadow-inner">
-                        <motion.div 
-                          initial={{ width: 0 }}
-                          animate={{ width: `${progress.percent}%` }}
-                          className="h-full bg-gradient-to-r from-indigo-600 to-indigo-400 rounded-full shadow-[0_0_15px_rgba(79,70,229,0.4)]"
-                        />
-                     </div>
+                    <div className="flex justify-between items-end">
+                      <div>
+                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.1em]">Engine Progress</p>
+                        <p className="text-xl font-black text-white">{progress.percent}%</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[10px] font-bold text-slate-600 uppercase">Items Processed</p>
+                        <p className="text-xs font-mono font-bold text-slate-400">{progress.processed} / {progress.total}</p>
+                      </div>
+                    </div>
+                    <div className="h-4 w-full bg-slate-950 rounded-full border border-slate-800 overflow-hidden p-1 shadow-inner">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${progress.percent}%` }}
+                        className="h-full bg-gradient-to-r from-indigo-600 to-indigo-400 rounded-full shadow-[0_0_15px_rgba(79,70,229,0.4)]"
+                      />
+                    </div>
                   </div>
 
                   {/* Download Hits Buttons */}
                   <div className="flex gap-2">
-                    <button 
+                    <button
                       onClick={() => downloadHitsFile('mini')}
                       className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-emerald-500/10 border border-emerald-500/30 hover:bg-emerald-500/20 rounded-xl transition-all"
                     >
                       <FileText className="w-4 h-4 text-emerald-400" />
                       <span className="text-[10px] font-bold text-emerald-400 uppercase">Mini Hits</span>
                     </button>
-                    <button 
+                    <button
                       onClick={() => downloadHitsFile('full')}
                       className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-indigo-500/10 border border-indigo-500/30 hover:bg-indigo-500/20 rounded-xl transition-all"
                     >
                       <Database className="w-4 h-4 text-indigo-400" />
                       <span className="text-[10px] font-bold text-indigo-400 uppercase">Full Hits</span>
                     </button>
-                    <button 
+                    <button
                       onClick={clearAll}
                       className="flex items-center justify-center gap-2 px-4 py-3 bg-rose-500/10 border border-rose-500/30 hover:bg-rose-500/20 rounded-xl transition-all"
                       title="Clear all stats, portal, and hits"
@@ -886,15 +894,15 @@ export default function App() {
                 <div className="flex items-center gap-3 flex-wrap">
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-600" />
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       placeholder="Search accounts..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                       className="pl-10 pr-4 py-2.5 bg-black border border-slate-700 rounded-xl text-sm focus:border-emerald-500 outline-none w-full md:w-64 transition-all placeholder:text-slate-600 text-slate-300"
                     />
                   </div>
-                  <button 
+                  <button
                     onClick={downloadHits}
                     disabled={hitsList.length === 0}
                     className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all disabled:opacity-30"
@@ -915,7 +923,7 @@ export default function App() {
                       exit={{ opacity: 0, scale: 0.9 }}
                       className="bg-black/80 border border-emerald-500/30 rounded-2xl p-4 space-y-2 shadow-[0_0_15px_rgba(16,185,129,0.1)] hover:border-emerald-500/50 transition-all"
                     >
-                      {/* Header: ACTIVE | Ping | Days */}
+                      {/* Header: ACTIVE | Ping | Days | Trial */}
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <span className="text-emerald-400 text-sm font-bold">🔥 ACTIVE</span>
@@ -924,12 +932,24 @@ export default function App() {
                               ⚡ {hit.ping}ms
                             </span>
                           )}
+                          {hit.isTrial && (
+                            <span className="px-2 py-0.5 bg-amber-500/20 border border-amber-500/30 text-amber-400 rounded text-[10px] font-bold">
+                              TRIAL
+                            </span>
+                          )}
                         </div>
-                        {hit.daysLeft !== undefined && hit.daysLeft !== 9999 && (
-                          <span className="px-2 py-0.5 bg-orange-500/20 border border-orange-500/30 text-orange-400 rounded text-[10px] font-bold">
-                             {hit.daysLeft} Days
-                          </span>
-                        )}
+                        <div className="flex items-center gap-1">
+                          {hit.country && (
+                            <span className="px-2 py-0.5 bg-indigo-500/20 border border-indigo-500/30 text-indigo-400 rounded text-[10px] font-bold">
+                              🌍 {hit.country}
+                            </span>
+                          )}
+                          {hit.daysLeft !== undefined && hit.daysLeft !== 9999 && (
+                            <span className="px-2 py-0.5 bg-orange-500/20 border border-orange-500/30 text-orange-400 rounded text-[10px] font-bold">
+                              {hit.daysLeft}d
+                            </span>
+                          )}
+                        </div>
                       </div>
 
                       {/* Host */}
@@ -940,6 +960,19 @@ export default function App() {
                           <button onClick={() => { if (uiSounds) SOUNDS.copy(); navigator.clipboard.writeText(hit.hostPort || `${hit.realm || ''}:${hit.port || '80'}`); }} className="text-slate-500 hover:text-cyan-400 transition-colors">
                             <Clipboard className="w-3 h-3" />
                           </button>
+                        </div>
+                      </div>
+
+                      {/* Panel Type & Protocol */}
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-400 text-xs">🖥 Panel:</span>
+                        <div className="flex items-center gap-1">
+                          <span className="text-purple-400 text-xs font-mono">{hit.panelType || 'N/A'}</span>
+                          {hit.serverProtocol && (
+                            <span className="px-1.5 py-0.5 bg-purple-500/10 border border-purple-500/20 text-purple-300 rounded text-[9px] font-bold uppercase">
+                              {hit.serverProtocol}
+                            </span>
+                          )}
                         </div>
                       </div>
 
@@ -981,21 +1014,15 @@ export default function App() {
                       <div className="flex items-center justify-between">
                         <span className="text-slate-400 text-xs">📺 Content:</span>
                         <div className="flex items-center gap-1">
-                          <span className="px-1.5 py-0.5 bg-cyan-500/20 border border-cyan-500/30 text-cyan-400 rounded text-[10px] font-bold">{hit.liveCount || 0}</span>
-                          <span className="px-1.5 py-0.5 bg-yellow-500/20 border border-yellow-500/30 text-yellow-400 rounded text-[10px] font-bold">{hit.vodCount || 0}</span>
-                          <span className="px-1.5 py-0.5 bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 rounded text-[10px] font-bold">{hit.seriesCount || 0}</span>
+                          <span className="px-1.5 py-0.5 bg-cyan-500/20 border border-cyan-500/30 text-cyan-400 rounded text-[10px] font-bold" title="Live">{hit.liveCount || 0}L</span>
+                          <span className="px-1.5 py-0.5 bg-yellow-500/20 border border-yellow-500/30 text-yellow-400 rounded text-[10px] font-bold" title="VOD">{hit.vodCount || 0}V</span>
+                          <span className="px-1.5 py-0.5 bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 rounded text-[10px] font-bold" title="Series">{hit.seriesCount || 0}S</span>
                         </div>
                       </div>
 
-                      {/* Timezone */}
+                      {/* Server IP & ISP */}
                       <div className="flex items-center justify-between">
-                        <span className="text-slate-400 text-xs">📍 Timezone:</span>
-                        <span className="text-slate-300 text-xs">{hit.timezone || 'N/A'}</span>
-                      </div>
-
-                      {/* Server IP */}
-                      <div className="flex items-center justify-between">
-                        <span className="text-slate-400 text-xs"> Server IP:</span>
+                        <span className="text-slate-400 text-xs">🖧 Server IP:</span>
                         <div className="flex items-center gap-1">
                           <span className="text-cyan-400 text-xs font-mono">{hit.serverIP || 'N/A'}</span>
                           {hit.serverIP && (
@@ -1006,37 +1033,75 @@ export default function App() {
                         </div>
                       </div>
 
+                      {/* ISP */}
+                      {hit.isp && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-400 text-xs">🏢 ISP:</span>
+                          <span className="text-slate-300 text-xs truncate max-w-[180px]" title={hit.isp}>{hit.isp}</span>
+                        </div>
+                      )}
+
                       {/* VPN */}
                       <div className="flex items-center justify-between">
                         <span className="text-slate-400 text-xs">🛡 VPN:</span>
                         {hit.vpn ? (
-                          <span className="text-emerald-400 text-xs">✅ {hit.vpn}</span>
+                          <span className={cn("text-xs font-bold", hit.vpn.startsWith('VPN') ? "text-amber-400" : "text-emerald-400")}>
+                            {hit.vpn.startsWith('VPN') ? '⚠️' : '✅'} {hit.vpn}
+                          </span>
                         ) : (
                           <span className="text-slate-500 text-xs">N/A</span>
                         )}
                       </div>
 
+                      {/* Timezone */}
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-400 text-xs">📍 Timezone:</span>
+                        <span className="text-slate-300 text-xs">{hit.timezone || 'N/A'}</span>
+                      </div>
+
                       {/* Adult */}
                       <div className="flex items-center justify-between">
-                        <span className="text-slate-400 text-xs"> ADULTE:</span>
+                        <span className="text-slate-400 text-xs">Adult Content:</span>
                         {hit.isAdult === true ? (
-                          <span className="text-red-400 text-xs">❌ Oui</span>
+                          <span className="text-rose-400 text-xs font-bold">🔞 YES</span>
                         ) : (
-                          <span className="text-red-400 text-xs">❌ Non</span>
+                          <span className="text-emerald-400 text-xs font-bold">✅ NO</span>
                         )}
                       </div>
 
+                      {/* Extra Server Info (collapsible row) */}
+                      {(hit.httpsPort || hit.rtmpPort || hit.serverLoad) && (
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {hit.httpsPort && (
+                            <span className="px-1.5 py-0.5 bg-slate-800 border border-slate-700 text-slate-400 rounded text-[9px] font-bold">HTTPS:{hit.httpsPort}</span>
+                          )}
+                          {hit.rtmpPort && (
+                            <span className="px-1.5 py-0.5 bg-slate-800 border border-slate-700 text-slate-400 rounded text-[9px] font-bold">RTMP:{hit.rtmpPort}</span>
+                          )}
+                          {hit.serverLoad && (
+                            <span className="px-1.5 py-0.5 bg-slate-800 border border-slate-700 text-slate-400 rounded text-[9px] font-bold">Load:{hit.serverLoad}</span>
+                          )}
+                        </div>
+                      )}
+
                       {/* Footer Buttons */}
                       <div className="flex gap-2 pt-2 border-t border-slate-800/50">
-                        <button 
-                          onClick={() => { if (uiSounds) SOUNDS.copy(); navigator.clipboard.writeText(`${portal}/get.php?username=${hit.username}&password=${hit.password}&type=m3u_plus`); }}
+                        <button
+                          onClick={() => { if (uiSounds) SOUNDS.copy(); navigator.clipboard.writeText(hit.m3uLink || `${portal}/get.php?username=${hit.username}&password=${hit.password}&type=m3u_plus`); }}
                           className="flex-1 flex items-center justify-center gap-2 py-2 border border-cyan-500/30 text-cyan-400 rounded-xl text-xs font-bold hover:bg-cyan-500/10 transition-all"
                         >
                           <Clipboard className="w-3.5 h-3.5" />
-                          COPY M3U
+                          M3U
                         </button>
-                        <button 
-                          onClick={() => window.open(`${portal}/get.php?username=${hit.username}&password=${hit.password}&type=m3u_plus`, '_blank')}
+                        <button
+                          onClick={() => { if (uiSounds) SOUNDS.copy(); navigator.clipboard.writeText(hit.epgUrl || ''); }}
+                          className="flex-1 flex items-center justify-center gap-2 py-2 border border-purple-500/30 text-purple-400 rounded-xl text-xs font-bold hover:bg-purple-500/10 transition-all"
+                        >
+                          <Clipboard className="w-3.5 h-3.5" />
+                          EPG
+                        </button>
+                        <button
+                          onClick={() => window.open(hit.m3uLink || `${portal}/get.php?username=${hit.username}&password=${hit.password}&type=m3u_plus`, '_blank')}
                           className="flex-1 flex items-center justify-center gap-2 py-2 border border-yellow-500/30 text-yellow-400 rounded-xl text-xs font-bold hover:bg-yellow-500/10 transition-all"
                         >
                           <Play className="w-3.5 h-3.5" />
@@ -1078,14 +1143,14 @@ export default function App() {
                   <ShieldAlert className="w-5 h-5 text-indigo-500" />
                   <span className="font-black text-slate-100 text-sm tracking-widest uppercase">Evasion Control</span>
                 </div>
-                
+
                 <div className="space-y-6">
                   <div className="flex items-center justify-between p-6 bg-slate-950 border border-slate-800 rounded-3xl group hover:border-indigo-500/30 transition-all">
                     <div className="space-y-1">
                       <span className="text-sm font-black text-white block uppercase tracking-tight">Cloudflare Shield</span>
                       <span className="text-[10px] text-slate-600 font-bold tracking-wider leading-none">TLS FINGERPRINT SPOOFING (CLOUDSCRAPER)</span>
                     </div>
-                    <button 
+                    <button
                       onClick={() => setBypassCloudflare(!bypassCloudflare)}
                       className={cn("w-14 h-7 rounded-full transition-all relative", bypassCloudflare ? "bg-emerald-500/20 border border-emerald-500/50" : "bg-slate-800 border border-slate-700")}
                     >
@@ -1098,7 +1163,7 @@ export default function App() {
                       <span className="text-sm font-black text-white block uppercase tracking-tight">Rotational UA</span>
                       <span className="text-[10px] text-slate-600 font-bold tracking-wider leading-none">DYNAMIC HEADER INJECTION</span>
                     </div>
-                    <button 
+                    <button
                       onClick={() => setRandomUserAgent(!randomUserAgent)}
                       className={cn("w-14 h-7 rounded-full transition-all relative", randomUserAgent ? "bg-indigo-500/20 border border-indigo-500/50" : "bg-slate-800 border border-slate-700")}
                     >
@@ -1111,7 +1176,7 @@ export default function App() {
                       <span className="text-sm font-black text-white block uppercase tracking-tight">Fetch Categories</span>
                       <span className="text-[10px] text-slate-600 font-bold tracking-wider leading-none">GET LIVE CATEGORIES ON HIT</span>
                     </div>
-                    <button 
+                    <button
                       onClick={() => setFetchCategories(!fetchCategories)}
                       className={cn("w-14 h-7 rounded-full transition-all relative", fetchCategories ? "bg-lime-500/20 border border-lime-500/50" : "bg-slate-800 border border-slate-700")}
                     >
@@ -1120,20 +1185,19 @@ export default function App() {
                   </div>
                 </div>
               </div>
-
               <div className="space-y-8">
                 <div className="flex items-center gap-3">
                   <Volume2 className="w-5 h-5 text-emerald-500" />
                   <span className="font-black text-slate-100 text-sm tracking-widest uppercase">Notifications</span>
                 </div>
-                
+
                 <div className="space-y-6">
                   <div className="flex items-center justify-between p-6 bg-slate-950 border border-slate-800 rounded-3xl group hover:border-indigo-500/30 transition-all">
                     <div className="space-y-1">
                       <span className="text-sm font-black text-white block uppercase tracking-tight">UI Sounds</span>
                       <span className="text-[10px] text-slate-600 font-bold tracking-wider leading-none">CLICK SOUNDS FOR BUTTONS & ACTIONS</span>
                     </div>
-                    <button 
+                    <button
                       onClick={() => setUiSounds(!uiSounds)}
                       className={cn("w-14 h-7 rounded-full transition-all relative", uiSounds ? "bg-indigo-500/20 border border-indigo-500/50" : "bg-slate-800 border border-slate-700")}
                     >
@@ -1146,7 +1210,7 @@ export default function App() {
                       <span className="text-sm font-black text-white block uppercase tracking-tight">Hit Alerts</span>
                       <span className="text-[10px] text-slate-600 font-bold tracking-wider leading-none">PLAY SOUND ON SUCCESSFUL HIT</span>
                     </div>
-                    <button 
+                    <button
                       onClick={() => setPlaySound(!playSound)}
                       className={cn("w-14 h-7 rounded-full transition-all relative", playSound ? "bg-emerald-500/20 border border-emerald-500/50" : "bg-slate-800 border border-slate-700")}
                     >
@@ -1156,36 +1220,36 @@ export default function App() {
 
                   <AnimatePresence>
                     {playSound && (
-                      <motion.div 
+                      <motion.div
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: 'auto' }}
                         exit={{ opacity: 0, height: 0 }}
                         className="overflow-hidden"
                       >
                         <div className="mt-4 p-6 border border-indigo-500/30 bg-slate-950 rounded-2xl flex flex-col items-center justify-center gap-4 text-center">
-                           <div className="p-3 bg-indigo-500/10 rounded-xl">
-                             <Music className="w-6 h-6 text-indigo-400" />
-                           </div>
-                           <div className="space-y-1">
-                              <p className="text-xs font-black text-white uppercase tracking-tight">
-                                {soundUrl ? "Custom Audio Saved" : "No Audio Mounted"}
-                              </p>
-                              <p className="text-[10px] text-slate-500 font-bold">PERSISTENT — UPLOAD ONCE, SAVED FOREVER</p>
-                           </div>
-                            <label className="cursor-pointer px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black tracking-widest rounded-xl transition-all shadow-lg shadow-indigo-600/10">
-                              UPLOAD ALERT
-                              <input type="file" accept="audio/*" onChange={(e) => handleFileUpload(e, 'audio')} className="hidden" />
-                            </label>
-                            {soundUrl && (
-                              <button onClick={() => { 
-                                setSoundUrl(null); 
-                                localStorage.removeItem('ghost_soundUrl');
-                                if (audioRef.current) audioRef.current.src = '';
-                                showNotification('SOUND REMOVED', 'Custom sound cleared, using built-in tones');
-                              }} className="px-4 py-2 bg-red-600/20 border border-red-500/30 hover:bg-red-600/40 text-red-400 text-[10px] font-black tracking-widest rounded-xl transition-all">
-                                REMOVE
-                              </button>
-                            )}
+                          <div className="p-3 bg-indigo-500/10 rounded-xl">
+                            <Music className="w-6 h-6 text-indigo-400" />
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-xs font-black text-white uppercase tracking-tight">
+                              {soundUrl ? "Custom Audio Saved" : "No Audio Mounted"}
+                            </p>
+                            <p className="text-[10px] text-slate-500 font-bold">PERSISTENT — UPLOAD ONCE, SAVED FOREVER</p>
+                          </div>
+                          <label className="cursor-pointer px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black tracking-widest rounded-xl transition-all shadow-lg shadow-indigo-600/10">
+                            UPLOAD ALERT
+                            <input type="file" accept="audio/*" onChange={(e) => handleFileUpload(e, 'audio')} className="hidden" />
+                          </label>
+                          {soundUrl && (
+                            <button onClick={() => {
+                              setSoundUrl(null);
+                              localStorage.removeItem('ghost_soundUrl');
+                              if (audioRef.current) audioRef.current.src = '';
+                              showNotification('SOUND REMOVED', 'Custom sound cleared, using built-in tones');
+                            }} className="px-4 py-2 bg-red-600/20 border border-red-500/30 hover:bg-red-600/40 text-red-400 text-[10px] font-black tracking-widest rounded-xl transition-all">
+                              REMOVE
+                            </button>
+                          )}
                         </div>
                       </motion.div>
                     )}
@@ -1201,22 +1265,22 @@ export default function App() {
 
       <footer className="max-w-7xl mx-auto px-4 py-12 border-t border-slate-800/50 mt-20">
         <div className="flex flex-col md:flex-row items-center justify-between gap-6 text-slate-600 text-[10px] font-bold uppercase tracking-[0.2em]">
-           <div className="flex items-center gap-2">
-             <div className="w-6 h-6 bg-slate-900 rounded-lg flex items-center justify-center border border-slate-800">
-               <Ghost className="w-3.5 h-3.5 text-slate-700" />
-             </div>
-             <span>M3U_GHOST SPECTRAL ENGINE v3.0</span>
-           </div>
-           <div className="flex items-center gap-6">
-             <div className="flex items-center gap-2">
-               <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]" /> 
-               SYS_ACTIVE
-             </div>
-             <span className="text-slate-800">/</span>
-             <span className="hover:text-indigo-400 transition-colors">PHANTOM_PROTOCOL_INITIALIZED</span>
-           </div>
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 bg-slate-900 rounded-lg flex items-center justify-center border border-slate-800">
+              <Ghost className="w-3.5 h-3.5 text-slate-700" />
+            </div>
+            <span>M3U_GHOST SPECTRAL ENGINE v3.0</span>
+          </div>
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-2">
+              <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
+              SYS_ACTIVE
+            </div>
+            <span className="text-slate-800">/</span>
+            <span className="hover:text-indigo-400 transition-colors">PHANTOM_PROTOCOL_INITIALIZED</span>
+          </div>
         </div>
       </footer>
-    </div>
+    </div >
   );
 }

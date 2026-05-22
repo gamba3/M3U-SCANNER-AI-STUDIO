@@ -23,12 +23,25 @@ export interface HitResult {
   // File paths for backend storage
   miniHitsFile?: string;
   fullHitsFile?: string;
-  // Additional fields for card display
+  // Display fields
   serverIP?: string;
   vpn?: string;
   isAdult?: boolean;
   ping?: number;
   hostPort?: string;
+  // SILENTGHOST2025 fields
+  country?: string;
+  isp?: string;
+  panelType?: string;
+  epgUrl?: string;
+  serverProtocol?: string;
+  rtmpPort?: string;
+  serverLoad?: string;
+  timeNow?: string;
+  httpsPort?: string;
+  allowedFormats?: string[];
+  isTrial?: boolean;
+  maxConnections?: number;
 }
 
 export interface ProgressState {
@@ -42,6 +55,10 @@ export interface ProgressState {
   statusCode?: number;
   currentUser?: string;
   currentPass?: string;
+  // SILENTGHOST2025 progress fields
+  eta?: number;
+  proxyPoolSize?: number;
+  deadProxies?: number;
 }
 
 export interface CheckRequest {
@@ -49,7 +66,6 @@ export interface CheckRequest {
   combo: string[]; // Format "user:pass"
   threads: number;
   proxies: string[];
-  proxyType: 'http' | 'socks4' | 'socks5' | 'none';
   bypassCloudflare: boolean;
   randomUserAgent: boolean;
   fetchCategories: boolean;
